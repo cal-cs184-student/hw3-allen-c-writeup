@@ -28,12 +28,12 @@
 	<body>
 		<div class="container">
 		<h1>CS184/284A Fall 2026 Homework 3 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+		<div style="text-align: center;">Names: Allen Chen, Ronald Aung </div>
 
 		<br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
+		Link to webpage: (TODO) <a href="https://cal-cs184-student.github.io/hw3-allen-c-writeup/">https://github.com/cal-cs184-student/hw3-allen-c-writeup6</a>
+		Link to GitHub repository: (TODO) <a href="https://github.com/cal-cs184-student/hw3-allen-c-writeup">https://github.com/cal-cs184-student/hw3-allen-c-writeup</a>
 		
 		<figure>
 			<img src="assets/cornell.png" alt="Cornell Boxes with Bunnies" style="width:70%"/>
@@ -45,8 +45,7 @@
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
-
+		In this homework, we worked together to build a path tracer that renders 3D scenes by simulating how light interacts with objects. We implemented camera ray generation, pixel sampling, and ray intersections with triangles and spheres. We also explored how BVHs can speed up ray tracing and how direct and indirect illumination contribute to realistic lighting. Overall, this homework helped us better understand how path tracing works and the tradeoffs between rendering quality and performance.
 		<h2>Part 1: Ray Generation and Scene Intersection</h2>
 <h3>Ray generation and primitive intersection</h3>
 <p>For each pixel, the renderer draws <code>ns_aa</code> uniformly distributed samples inside the pixel using <code>gridSampler</code>. It adds each sample's offset to the pixel's bottom-left corner, then divides by the image width and height to obtain normalized image coordinates. Sampling multiple positions and averaging their colors estimates the pixel's radiance and smooths object boundaries.</p>
