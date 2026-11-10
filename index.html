@@ -175,8 +175,66 @@
 ./build/pathtracer -t 8 -s 64 -l 4 -m 5 -o 1 -r 320 240 -c part4-CBbunny-camera.txt -f bunny-spp-64.png dae/sky/CBbunny.dae</pre>
 <p>For the indirect-only variant, the direct-light condition in <code>at_least_one_bounce_radiance</code> becomes <code>(isAccumBounces || r.depth == 1) &amp;&amp; r.depth != max_ray_depth</code>, and the camera-hit emission is omitted. All other recursion and weighting remain unchanged. This variant is rendered with <code>-s 1024 -l 4 -m 5 -o 1</code>.</p>
 
-		<h2>Part 5: Adaptive Sampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<h2 id="part5" align="middle">Part 5: Adaptive Sampling</h2>
+<!-- Explain adaptive sampling. Walk through your implementation of the adaptive sampling.
+Pick one scene and render it with at least 2048 samples per pixel. Show a good sampling rate image with clearly visible differences in sampling rate over various regions and pixels. Include both your sample rate image, which shows your how your adaptive sampling changes depending on which part of the image you are rendering, and your noise-free rendered result. Use 1 sample per light and at least 5 for max ray depth. -->
+
+<h3>Adaptive sampling implementation</h3>
+<p>
+Adaptive sampling allocates work separately for each pixel. A pixel whose radiance estimates are consistent can stop early, while a pixel with greater variation continues receiving samples. This is useful for path tracing because indirect illumination, visibility changes, and shadows can make some pixels much harder to estimate than others.
+</p>
+<p>
+In <code>PathTracer::raytrace_pixel()</code>, I generate random camera rays within the pixel and accumulate their RGB radiance. For each sample, I also call <code>illum()</code> and update two running totals: the sum of illuminances, \(s_1\), and the sum of their squares, \(s_2\). After every <code>samplesPerBatch</code> samples, provided there are at least two samples, I compute
+</p>
+<p>
+\[
+\mu = \frac{s_1}{n}, \qquad
+\sigma^2 = \max\left(0,\frac{s_2-s_1^2/n}{n-1}\right), \qquad
+I = 1.96\sqrt{\frac{\sigma^2}{n}}.
+\]
+</p>
+<p>
+The clamp prevents floating-point roundoff from producing a negative variance. If \(I \leq \texttt{maxTolerance}\,\mu\), I stop sampling the pixel; otherwise, I continue until the next batch or the <code>ns_aa</code> cap. Finally, I divide the accumulated RGB radiance by the number of samples actually taken and store that count in <code>sampleCountBuffer</code>. Dividing by the cap instead would incorrectly darken pixels that stopped early. The confidence test is a practical convergence estimate, not a guarantee that all visible noise has disappeared.
+</p>
+
+<h3>Rendered results and sampling rates</h3>
+<p>
+Both scenes use a maximum of <strong>2,048 samples per pixel</strong>, batches of <strong>64</strong>, a relative tolerance of <strong>0.05</strong>, <strong>one sample per light</strong>, and a maximum depth of <strong>five bounces</strong>, with bounce accumulation enabled. The images are 480 &times; 360 pixels and were saved directly by the renderer using <code>-f</code>. Under adaptive sampling, 2,048 is the upper limit; converged pixels use fewer samples.
+</p>
+<p>
+The rate images encode the actual count divided by 2,048: blue indicates few samples, green corresponds to roughly 1,024 samples, and red indicates the full 2,048. The minimum batch of 64 is 3.125% of the cap. Each image below links to its original PNG.
+</p>
+<!-- Example of including multiple figures -->
+<table style="width:100%; table-layout:fixed">
+  <tr><th>Rendered image</th><th>Sampling rate</th></tr>
+  <tr>
+    <td><figure style="margin:8px"><a href="assets/part5-bunny.png"><img src="assets/part5-bunny.png" alt="Cornell box bunny rendered with adaptive sampling" style="width:100%" /></a><figcaption>CBbunny.dae &mdash; up to 2,048 samples/pixel.</figcaption></figure></td>
+    <td><figure style="margin:8px"><a href="assets/part5-bunny_rate.png"><img src="assets/part5-bunny_rate.png" alt="Adaptive sampling rate for the Cornell bunny" style="width:100%" /></a><figcaption>Bunny sample counts: blue (low) to red (cap).</figcaption></figure></td>
+  </tr>
+  <tr>
+    <td><figure style="margin:8px"><a href="assets/part5-spheres.png"><img src="assets/part5-spheres.png" alt="Diffuse spheres rendered with adaptive sampling" style="width:100%" /></a><figcaption>CBspheres_lambertian.dae &mdash; up to 2,048 samples/pixel.</figcaption></figure></td>
+    <td><figure style="margin:8px"><a href="assets/part5-spheres_rate.png"><img src="assets/part5-spheres_rate.png" alt="Adaptive sampling rate for the diffuse spheres" style="width:100%" /></a><figcaption>Sphere sample counts: blue (low) to red (cap).</figcaption></figure></td>
+  </tr>
+</table>
+
+<h3>Observations</h3>
+<p>
+For the bunny, the rate map concentrates red pixels across much of the lower body, the folds around the legs, parts of the face and ears, and the shadow beneath it. The top of the back and broad areas of the walls require fewer samples. Compared with the spheres, the bunny has a more irregular pattern across its surface: its detailed shape changes which directions are occluded and how much direct light reaches each point. Both scenes show the same broad distinction between the inexpensive, directly visible light and the more expensive ceiling and shadow regions. The final bunny image preserves the soft floor shadow and colored illumination from the walls without spending the full budget on every pixel.
+</p>
+
+<p>
+In the spheres scene, the ceiling, contact shadows, and shaded lower portion of the larger sphere are red in the rate map, indicating that they reach the sample cap. These regions receive a greater share of their light through indirect paths or have variable visibility to the area light. Their estimates fluctuate more, and darker pixels also have a smaller absolute error threshold because the stopping condition scales with the mean. In contrast, much of the back wall and the brightly lit sphere tops are blue or cyan and converge with fewer samples. The visible area light is also blue: most rays through its interior return the same emitted radiance.
+</p>
+<p>
+The final sphere image retains soft shadows and red and blue color bleeding while assigning different amounts of work to different regions. A red pixel means the budget was exhausted, not necessarily that the confidence test passed. Slight residual grain can remain, especially where indirect illumination is difficult to estimate; adaptive sampling reduces unnecessary work but does not guarantee a perfectly noise-free image.
+</p>
+
+<h3>Reproducing the renders</h3>
+<p>Run these commands from the repository root after building:</p>
+<pre style="white-space:pre-wrap; overflow-wrap:anywhere"><code>./build/pathtracer -t 1 -s 2048 -a 64 0.05 -l 1 -m 5 -r 480 360 -f docs/images/part5-bunny.png dae/sky/CBbunny.dae
+./build/pathtracer -t 1 -s 2048 -a 64 0.05 -l 1 -m 5 -r 480 360 -f docs/images/part5-spheres.png dae/sky/CBspheres_lambertian.dae</code></pre>
+<p>Settings and convergence criterion follow the <a href="https://cs184.eecs.berkeley.edu/fa26/hw/hw3/part5/">Part 5 assignment specification</a>.</p>
+
 
 		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
 		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
